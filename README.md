@@ -60,9 +60,14 @@ Train:
 ```
 
 model-1700
+
 Total number of test examples: 10662
+
 Accuracy: 0.971019
+
 Saving evaluation to ./runs/1522466854/checkpoints/../prediction.csv
+
+-1522466854,每跑一次train,都会生成一个不同的数字用以区分
 
 Replace the checkpoint dir with the output from the training. To use your own data, change the `eval.py` script to load your data.
 

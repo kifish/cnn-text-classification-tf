@@ -11,13 +11,15 @@ from tensorflow.contrib import learn
 
 # Parameters
 # ==================================================
-
+#数据集里10%为验证集
 # Data loading params
 tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
+#原数据的文件路径
 tf.flags.DEFINE_string("positive_data_file", "./data/rt-polaritydata/rt-polarity.pos", "Data source for the positive data.")
 tf.flags.DEFINE_string("negative_data_file", "./data/rt-polaritydata/rt-polarity.neg", "Data source for the negative data.")
 
 # Model Hyperparameters
+#embedding维度256，4种尺寸的卷积核，每种128个，0.5的dropout
 tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
 tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
 tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
@@ -25,6 +27,7 @@ tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (defau
 tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
 
 # Training parameters
+#batchsize为64，200个epoch，每100个batch后，计算验证集上的表现，每100个batch后保存模型
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 200, "Number of training epochs (default: 200)")
 tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
@@ -32,13 +35,16 @@ tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many ste
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
+#True表示自动寻找一个存在并支持的cpu或者gpu，防止指定的设备不存在
+
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
+#如果将False改为True，可以看到operations被指派到哪个设备运行
 
 #FLAGS = tf.flags.FLAGS  tf1.2
 #FLAGS._parse_flags()    tf1.2
 
 #tf>1.5
-flags = tf.app.flags
+flags = tf.app.flags #保存了解析后的命令行参数
 FLAGS = flags.FLAGS
 print("\nParameters:")
 for attr, value in sorted(FLAGS.flag_values_dict().items()):
@@ -51,12 +57,22 @@ print()
 
 # Load data
 print("Loading data...")
+print("start_time"+"\t\t"+str(datetime.datetime.now().isoformat()))
 x_text, y = data_helpers.load_data_and_labels(FLAGS.positive_data_file, FLAGS.negative_data_file)
+print("end_time"+"\t\t"+str(datetime.datetime.now().isoformat()))
+#这里的y是数值，x还是单词序列
+#这里一次性载入所有数据，注意考虑内存，大数据的情况下如何载入需要分析
+
 
 # Build vocabulary
+#把词map为索引值
 max_document_length = max([len(x.split(" ")) for x in x_text])
+#每一行的最多单词数
 vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length)
+#构建hash
 x = np.array(list(vocab_processor.fit_transform(x_text)))
+#转化为索引值
+#在不够长度的行后面补0（或者其他值），样本变成了索引数值矩阵，x:num_of_rows*seq_len的tensor
 
 # Randomly shuffle data
 np.random.seed(10)
@@ -68,7 +84,7 @@ y_shuffled = y[shuffle_indices]
 # 将数据按训练train和测试dev分块
 # Split train/test set
 # TODO: This is very crude, should use cross-validation
-dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(len(y)))
+dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(len(y))) #倒着数
 x_train, x_dev = x_shuffled[:dev_sample_index], x_shuffled[dev_sample_index:]
 y_train, y_dev = y_shuffled[:dev_sample_index], y_shuffled[dev_sample_index:]
 
@@ -101,6 +117,7 @@ with tf.Graph().as_default():
         optimizer = tf.train.AdamOptimizer(1e-3)
         grads_and_vars = optimizer.compute_gradients(cnn.loss)
         train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+        #函数minimize() 与compute_gradients()都含有一个参数gate_gradient，用于控制在应用这些梯度时并行化的程度。这里没有？
 
         # Keep track of gradient values and sparsity (optional)
         grad_summaries = []
@@ -178,17 +195,18 @@ with tf.Graph().as_default():
                 writer.add_summary(summaries, step)
 
         # Generate batches
+        # Generator
         batches = data_helpers.batch_iter(
             list(zip(x_train, y_train)), FLAGS.batch_size, FLAGS.num_epochs)
         # Training loop. For each batch...
         for batch in batches:
-            x_batch, y_batch = zip(*batch)
+            x_batch, y_batch = zip(*batch) #unzip，将配对的样本，分离出来data和label
             train_step(x_batch, y_batch)
             current_step = tf.train.global_step(sess, global_step)
-            if current_step % FLAGS.evaluate_every == 0:
+            if current_step % FLAGS.evaluate_every == 0: #每多少步，算一下验证集效果
                 print("\nEvaluation:")
                 dev_step(x_dev, y_dev, writer=dev_summary_writer)
                 print("")
-            if current_step % FLAGS.checkpoint_every == 0:
+            if current_step % FLAGS.checkpoint_every == 0: #每多少步，保存模型
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 print("Saved model checkpoint to {}\n".format(path))

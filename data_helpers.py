@@ -48,10 +48,12 @@ def load_data_and_labels(positive_data_file, negative_data_file):
 def batch_iter(data, batch_size, num_epochs, shuffle=True):
     """
     Generates a batch iterator for a dataset.
+    定义一个函数，输出batch样本，参数为data（包括feature和label），batchsize，epoch
+    generator 比 list 省内存
     """
-    data = np.array(data)
+    data = np.array(data) #全部数据转化为array
     data_size = len(data)
-    num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
+    num_batches_per_epoch = int((len(data)-1)/batch_size) + 1 #每个epoch有多少个batch。举例，int((12-1)/5) + 1 = 3;int((10-1)/5) + 1 = 2
     for epoch in range(num_epochs):
         # Shuffle the data at each epoch
         if shuffle:
@@ -59,7 +61,7 @@ def batch_iter(data, batch_size, num_epochs, shuffle=True):
             shuffled_data = data[shuffle_indices]
         else:
             shuffled_data = data
-        for batch_num in range(num_batches_per_epoch):
+        for batch_num in range(num_batches_per_epoch): #生成每个batch
             start_index = batch_num * batch_size
-            end_index = min((batch_num + 1) * batch_size, data_size)
-            yield shuffled_data[start_index:end_index]
+            end_index = min((batch_num + 1) * batch_size, data_size)  #边界检查
+            yield shuffled_data[start_index:end_index]   #yield，在for循环执行时，每次返回一个batch的data
