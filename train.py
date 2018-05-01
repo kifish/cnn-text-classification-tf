@@ -69,6 +69,7 @@ print("end_time"+"\t\t"+str(datetime.datetime.now().isoformat()))
 max_document_length = max([len(x.split(" ")) for x in x_text])
 #每一行的最多单词数
 vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length)
+#这里的max_document_length 即 sequence_length=x_train.shape[1]
 #构建hash
 x = np.array(list(vocab_processor.fit_transform(x_text)))
 #转化为索引值
